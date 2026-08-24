@@ -19,7 +19,6 @@ import { Fonts, Lime, Radius } from '../theme/colors';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAppStore } from '../store/useAppStore';
 import { saveToPhotos, shareImages, sharePdf } from '../services/export';
-import { isExpoGo } from '../services/scanner';
 import { RootStackParamList } from '../navigation/types';
 
 export function DocumentDetailScreen({
@@ -34,7 +33,6 @@ export function DocumentDetailScreen({
   const documents = useAppStore((s) => s.documents);
   const updateDocument = useAppStore((s) => s.updateDocument);
   const deleteDocuments = useAppStore((s) => s.deleteDocuments);
-  const useInApp = useAppStore((s) => s.settings.useInAppCamera);
   const document = documents.find((d) => d.id === id);
   const [busy, setBusy] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -97,7 +95,8 @@ export function DocumentDetailScreen({
               <PressableScale
                 onPress={() =>
                   navigation.navigate('Crop', {
-                    imageUri: item.originalPath ?? item.path,
+                    imageUri: item.path,
+                    originalUri: item.originalPath ?? item.path,
                     documentId: document.id,
                     pageId: item.id,
                     filter: item.filter,
@@ -121,9 +120,7 @@ export function DocumentDetailScreen({
         <BrandButton
           label="Add page"
           variant="ghost"
-          onPress={() =>
-            navigation.navigate(useInApp || isExpoGo() ? 'Camera' : 'NativeScan')
-          }
+          onPress={() => navigation.navigate('Camera')}
         />
         <View style={{ height: 10 }} />
         <BrandButton label="Export" onPress={() => setExportOpen(true)} />

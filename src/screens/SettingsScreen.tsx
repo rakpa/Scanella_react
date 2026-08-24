@@ -28,7 +28,7 @@ export function SettingsScreen() {
             icon="camera"
             tint={colors.docBlue}
             title="Use the in-app camera"
-            subtitle="Off uses the iOS document scanner, which finds edges best."
+            subtitle="Live auto edge detection from scan2. Keep this on."
             value={settings.useInAppCamera}
             onChange={(v) => void update({ useInAppCamera: v })}
           />
@@ -38,7 +38,6 @@ export function SettingsScreen() {
             title="Auto-capture"
             subtitle="Shoots once the page is steady."
             value={settings.autoCapture}
-            disabled={!settings.useInAppCamera}
             onChange={(v) => void update({ autoCapture: v })}
           />
           <SwitchRow
@@ -46,7 +45,6 @@ export function SettingsScreen() {
             tint={colors.amber}
             title="Shutter sound"
             value={settings.shutterSound}
-            disabled={!settings.useInAppCamera}
             onChange={(v) => void update({ shutterSound: v })}
             last
           />

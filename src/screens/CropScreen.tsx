@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Image } from 'expo-image';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,6 +11,8 @@ import { FILTERS, ScanFilter } from '../types';
 import { Fonts, Lime, Radius } from '../theme/colors';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAppStore } from '../store/useAppStore';
+import { overwritePageImage } from '../services/documents';
+import { renderPage, renderPageBytes } from '../scanner/scanPipeline';
 import { RootStackParamList } from '../navigation/types';
 
 export function CropScreen({
@@ -21,38 +23,64 @@ export function CropScreen({
   route: RouteProp<RootStackParamList, 'Crop'>;
 }) {
   const { colors } = useTheme();
-  const { imageUri, documentId, pageId, filter: initialFilter } = route.params;
+  const { imageUri, originalUri, documentId, pageId, filter: initialFilter } = route.params;
   const defaultFilter = useAppStore((s) => s.settings.defaultFilter);
   const replacePage = useAppStore((s) => s.replacePage);
   const documents = useAppStore((s) => s.documents);
-  const [filter, setFilter] = useState<ScanFilter>(initialFilter ?? defaultFilter);
-  const [brightness, setBrightness] = useState(0);
-  const [contrast, setContrast] = useState(0);
+  const page = documents
+    .find((d) => d.id === documentId)
+    ?.pages.find((p) => p.id === pageId);
+  const sourceUri = originalUri ?? page?.originalPath ?? imageUri;
+  const [filter, setFilter] = useState<ScanFilter>(initialFilter ?? page?.filter ?? defaultFilter);
+  const [brightness, setBrightness] = useState(page?.brightness ?? 0);
+  const [contrast, setContrast] = useState(page?.contrast ?? 0);
+  const [previewUri, setPreviewUri] = useState(imageUri);
+  const [rendering, setRendering] = useState(false);
   const [busy, setBusy] = useState(false);
+  const generation = useRef(0);
 
-  const previewStyle = useMemo(() => {
-    const filters: string[] = [];
-    if (filter === 'grayscale' || filter === 'bw') filters.push('grayscale(1)');
-    if (filter === 'bw') filters.push('contrast(1.7)');
-    if (filter === 'magic') {
-      filters.push('contrast(1.2)');
-      filters.push('brightness(1.06)');
-    }
-    if (filter === 'enhance') filters.push('contrast(1.18)');
-    if (brightness) filters.push(`brightness(${1 + brightness})`);
-    if (contrast) filters.push(`contrast(${1 + contrast})`);
-    return filters.length ? ({ filter: filters.join(' ') } as const) : undefined;
-  }, [filter, brightness, contrast]);
+  useEffect(() => {
+    const id = ++generation.current;
+    setRendering(true);
+    const timer = setTimeout(() => {
+      void renderPage({
+        originalUri: sourceUri,
+        filter,
+        brightness,
+        contrast,
+        previewMaxEdge: 720,
+      })
+        .then((uri) => {
+          if (generation.current === id) setPreviewUri(uri);
+        })
+        .catch((e) => {
+          if (generation.current === id) Alert.alert('Filter failed', String(e));
+        })
+        .finally(() => {
+          if (generation.current === id) setRendering(false);
+        });
+    }, 90);
+    return () => clearTimeout(timer);
+  }, [sourceUri, filter, brightness, contrast]);
 
   const save = async () => {
     setBusy(true);
     try {
+      const rendered = await renderPageBytes({
+        originalUri: sourceUri,
+        filter,
+        brightness,
+        contrast,
+      });
       if (documentId && pageId) {
         const doc = documents.find((d) => d.id === documentId);
-        const page = doc?.pages.find((p) => p.id === pageId);
-        if (page) {
+        const current = doc?.pages.find((p) => p.id === pageId);
+        if (current) {
+          const path = await overwritePageImage(current.path, rendered.uri);
           await replacePage(documentId, {
-            ...page,
+            ...current,
+            path,
+            originalPath: current.originalPath ?? sourceUri,
             filter,
             brightness,
             contrast,
@@ -77,11 +105,12 @@ export function CropScreen({
         <View style={{ width: 64 }} />
       </View>
       <View style={styles.preview}>
-        <Image
-          source={{ uri: imageUri }}
-          style={[styles.image, previewStyle as object]}
-          contentFit="contain"
-        />
+        <Image source={{ uri: previewUri }} style={styles.image} contentFit="contain" />
+        {rendering ? (
+          <View style={styles.previewBusy}>
+            <ActivityIndicator color={Lime} />
+          </View>
+        ) : null}
       </View>
       <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
         <View style={styles.chips}>
@@ -159,6 +188,12 @@ const styles = StyleSheet.create({
   title: { fontFamily: Fonts.extraBold, color: '#FFFFFF', fontSize: 17 },
   preview: { flex: 1, margin: 16, borderRadius: 16, overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
+  previewBusy: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
   sheet: {
     borderTopLeftRadius: Radius.sheet,
     borderTopRightRadius: Radius.sheet,

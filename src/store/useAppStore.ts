@@ -14,7 +14,7 @@ const defaultSettings: AppSettings = {
   autoCapture: true,
   defaultFilter: 'magic',
   shutterSound: true,
-  useInAppCamera: false,
+  useInAppCamera: true,
 };
 
 type AppStore = {

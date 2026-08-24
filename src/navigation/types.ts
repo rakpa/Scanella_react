@@ -16,6 +16,7 @@ export type RootStackParamList = {
   Camera: undefined;
   Crop: {
     imageUri: string;
+    originalUri?: string;
     documentId?: string;
     pageId?: string;
     filter?: ScanFilter;

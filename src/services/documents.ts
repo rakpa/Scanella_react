@@ -17,12 +17,25 @@ async function copyInto(dir: Directory, uri: string, name: string) {
   }
 }
 
+export async function overwritePageImage(destUri: string, sourceUri: string): Promise<string> {
+  try {
+    const dest = new File(destUri);
+    if (dest.exists) dest.delete();
+    const source = new File(sourceUri);
+    source.copy(dest);
+    return dest.uri;
+  } catch {
+    return sourceUri;
+  }
+}
+
 export async function persistScans(
   uris: string[],
   options: {
     title: string;
     filter: ScanFilter;
     edgesAlreadyApplied?: boolean;
+    originalUris?: string[];
   },
 ): Promise<ScanDocument> {
   const id = nextId();
@@ -38,7 +51,11 @@ export async function persistScans(
   const pages: ScanPage[] = [];
   for (let i = 0; i < uris.length; i += 1) {
     const path = await copyInto(dir, uris[i], `page-${i + 1}.jpg`);
-    const originalPath = await copyInto(dir, uris[i], `original-${i + 1}.jpg`);
+    const originalPath = await copyInto(
+      dir,
+      options.originalUris?.[i] ?? uris[i],
+      `original-${i + 1}.jpg`,
+    );
     pages.push({
       id: nextId(),
       path,

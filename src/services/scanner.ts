@@ -8,34 +8,13 @@ export function isExpoGo() {
 }
 
 /**
- * VisionKit lives in a custom native module. Expo Go does not ship it, so we
- * never import that package at startup — a static import crashes the whole
- * bundle with TurboModuleRegistry.getEnforcing('DocumentScanner').
+ * Expo Go does not include VisionKit. Do not import
+ * react-native-document-scanner-plugin from this file — a static or bundled
+ * require crashes startup with TurboModuleRegistry.getEnforcing('DocumentScanner').
+ * A development build can call VisionKit from a native screen later.
  */
 export async function scanWithVisionKit(): Promise<string[] | null> {
-  if (isExpoGo() || Platform.OS === 'web') {
-    return scanWithCamera();
-  }
-
-  try {
-    // Loaded only in a dev/production build that actually contains the module.
-    const plugin = require('react-native-document-scanner-plugin') as {
-      default: {
-        scanDocument: (options?: { croppedImageQuality?: number }) => Promise<{
-          status?: string;
-          scannedImages?: string[];
-        }>;
-      };
-    };
-    const DocumentScanner = plugin.default ?? plugin;
-    const result = await DocumentScanner.scanDocument({
-      croppedImageQuality: 100,
-    });
-    if (result.status === 'cancel') return null;
-    return result.scannedImages ?? [];
-  } catch {
-    return scanWithCamera();
-  }
+  return scanWithCamera();
 }
 
 export async function scanWithCamera(): Promise<string[] | null> {

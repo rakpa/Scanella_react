@@ -1,12 +1,9 @@
 /**
  * Capture pipeline matching scan2 PageProcessor:
- * detect on a downscaled luma grid, shrink the quad, perspective-correct, enhance.
- *
- * Full-resolution pixels are kept until a native bounding-box crop; JS warp then
- * runs only on the page, not a crushed copy of the whole camera frame.
+ * detect on a downscaled luma grid, perspective-correct, enhance.
  */
 import { ScanFilter } from '../types';
-import { Quad, quadBoundingBox, remapQuadToCrop } from './geometry';
+import { Quad } from './geometry';
 import {
   ANALYSIS_WIDTH,
   STILL_ANALYSIS_EDGE,
@@ -14,15 +11,7 @@ import {
   detectionToQuad,
 } from './documentQuadDetector';
 import { applyAdjustments, isNoOp, ScanAdjustments } from './imageProcessor';
-import {
-  bakeJpeg,
-  cropJpeg,
-  decodeJpegUri,
-  encodeRasterJpeg,
-  PROCESS_MAX_EDGE,
-  resizeJpeg,
-  writeJpegFile,
-} from './jpeg';
+import { decodeJpegUri, encodeRasterJpeg, PROCESS_MAX_EDGE, writeJpegFile } from './jpeg';
 import { warpRaster } from './perspective';
 import { Raster } from './raster';
 
@@ -55,17 +44,6 @@ export function detectQuadInRaster(source: Raster): Quad | null {
   return detectionToQuad(detection, 0.006);
 }
 
-async function detectQuadFromUri(uri: string, width?: number, height?: number): Promise<Quad | null> {
-  const decoded = await decodeJpegUri(uri, {
-    maxEdge: STILL_ANALYSIS_EDGE,
-    sourceWidth: width,
-    sourceHeight: height,
-  });
-  const detection = detectFromLuminance(decoded.raster.toLuma(), decoded.width, decoded.height);
-  if (!detection) return null;
-  return detectionToQuad(detection, 0.006);
-}
-
 export type ProcessedPage = {
   processedUri: string;
   originalUri: string;
@@ -82,38 +60,24 @@ export async function processCapture(options: {
   sourceWidth?: number;
   sourceHeight?: number;
 }): Promise<ProcessedPage> {
-  const baked = await bakeJpeg(options.uri);
+  const decoded = await decodeJpegUri(options.uri, {
+    maxEdge: PROCESS_MAX_EDGE,
+    sourceWidth: options.sourceWidth,
+    sourceHeight: options.sourceHeight,
+  });
+  let source = decoded.raster;
+  if (Math.max(source.width, source.height) > PROCESS_MAX_EDGE) {
+    source = source.downscaledTo(PROCESS_MAX_EDGE);
+  }
+
   let quad: Quad | null = null;
   if (options.detectEdges !== false) {
-    quad = (await detectQuadFromUri(baked.uri, baked.width, baked.height)) ?? options.fallbackQuad ?? null;
+    quad = detectQuadInRaster(source) ?? options.fallbackQuad ?? null;
   }
 
-  let workUri = baked.uri;
-  let workWidth = baked.width;
-  let workHeight = baked.height;
-  let localQuad = quad;
+  const warped = quad ? (warpRaster(source, quad) ?? source) : source;
 
-  if (quad) {
-    try {
-      const box = quadBoundingBox(quad, baked.width, baked.height);
-      const cropped = await cropJpeg(baked.uri, box);
-      localQuad = remapQuadToCrop(quad, box, baked.width, baked.height);
-      workUri = cropped.uri;
-      workWidth = cropped.width;
-      workHeight = cropped.height;
-    } catch {
-      localQuad = quad;
-    }
-  }
-
-  const fitted = await resizeJpeg(workUri, PROCESS_MAX_EDGE, workWidth, workHeight);
-  const decoded = await decodeJpegUri(fitted.uri);
-  let warped = decoded.raster;
-  if (localQuad) {
-    warped = warpRaster(decoded.raster, localQuad) ?? decoded.raster;
-  }
-
-  const originalBytes = encodeRasterJpeg(warped, 95);
+  const originalBytes = encodeRasterJpeg(warped, 92);
   const originalUri = await writeJpegFile(originalBytes, `orig-${Date.now()}.jpg`);
 
   const adjustments: ScanAdjustments = {
@@ -127,7 +91,7 @@ export async function processCapture(options: {
   }
 
   const filtered = applyAdjustments(warped, adjustments);
-  const processedUri = await writeJpegFile(encodeRasterJpeg(filtered, 95), `page-${Date.now()}.jpg`);
+  const processedUri = await writeJpegFile(encodeRasterJpeg(filtered, 92), `page-${Date.now()}.jpg`);
   return { processedUri, originalUri, quad };
 }
 
@@ -152,7 +116,7 @@ export async function renderPage(options: {
   };
   if (isNoOp(adjustments)) return options.originalUri;
   const filtered = applyAdjustments(raster, adjustments);
-  return writeJpegFile(encodeRasterJpeg(filtered, 92), `preview-${Date.now()}.jpg`);
+  return writeJpegFile(encodeRasterJpeg(filtered, 90), `preview-${Date.now()}.jpg`);
 }
 
 export async function renderPageBytes(options: {
@@ -172,7 +136,7 @@ export async function renderPageBytes(options: {
     contrast: options.contrast,
   };
   const out = isNoOp(adjustments) ? raster : applyAdjustments(raster, adjustments);
-  const bytes = encodeRasterJpeg(out, 95);
+  const bytes = encodeRasterJpeg(out, 92);
   const uri = await writeJpegFile(bytes, `save-${Date.now()}.jpg`);
   return { uri, bytes };
 }

@@ -20,6 +20,22 @@ import { QuadOverlay } from '../scanner/QuadOverlay';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function CameraScreen({
   navigation,
 }: {
@@ -32,6 +48,7 @@ export function CameraScreen({
   const capturingRef = useRef(false);
   const analyzingRef = useRef(false);
   const readyRef = useRef(false);
+  const pictureLock = useRef(Promise.resolve());
   const captureFn = useRef<() => void>(() => undefined);
   const scanRef = useRef<ScanState>(idleScanState());
   const [scan, setScan] = useState<ScanState>(idleScanState);
@@ -46,6 +63,29 @@ export function CameraScreen({
   const shutterSound = useAppStore((s) => s.settings.shutterSound);
   scanRef.current = scan;
 
+  const takePicture = useCallback(
+    (options: { quality: number; shutterSound: boolean; timeoutMs: number }) => {
+      const run = async () => {
+        if (!camera.current) throw new Error('Camera is not ready');
+        return withTimeout(
+          camera.current.takePictureAsync({
+            quality: options.quality,
+            shutterSound: options.shutterSound,
+          }),
+          options.timeoutMs,
+          'Camera timed out',
+        );
+      };
+      const next = pictureLock.current.then(run, run);
+      pictureLock.current = next.then(
+        () => undefined,
+        () => undefined,
+      );
+      return next;
+    },
+    [],
+  );
+
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setViewSize({ width, height });
@@ -54,36 +94,29 @@ export function CameraScreen({
   const capture = useCallback(async () => {
     if (!camera.current || capturingRef.current) return;
     capturingRef.current = true;
-    setBusy(true);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       const waitStart = Date.now();
-      while (analyzingRef.current && Date.now() - waitStart < 2000) {
+      while (analyzingRef.current && Date.now() - waitStart < 2500) {
         await sleep(40);
-      }
-      // Let autofocus recover after live analysis stills, matching scan2
-      // taking one full-res photo from a live preview rather than a 15% JPEG.
-      await sleep(280);
-      try {
-        await camera.current.resumePreview();
-      } catch {
-        // Preview already running.
       }
 
       setFlash(1);
       setTimeout(() => setFlash(0), 90);
 
-      const photo = await camera.current.takePictureAsync({
-        quality: 1,
+      const photo = await takePicture({
+        quality: 0.92,
         shutterSound,
+        timeoutMs: 8000,
       });
       if (!photo?.uri) {
         trackerRef.current?.releaseCaptureLock();
         return;
       }
 
-      setStatus('Finding edges…');
+      setBusy(true);
+      setStatus('Straightening page…');
       const live = scanRef.current;
       const fallback = live.hasDocument ? live.quad : null;
       const processed = await processCapture({
@@ -113,12 +146,14 @@ export function CameraScreen({
       });
     } catch (e) {
       trackerRef.current?.releaseCaptureLock();
-      setStatus(String(e));
+      setStatus('Could not capture — try the shutter');
+      await sleep(1600);
+      if (!capturingRef.current) setStatus(null);
     } finally {
       capturingRef.current = false;
       setBusy(false);
     }
-  }, [addDocument, filter, navigation, shutterSound]);
+  }, [addDocument, filter, navigation, shutterSound, takePicture]);
 
   captureFn.current = () => {
     void capture();
@@ -144,8 +179,10 @@ export function CameraScreen({
   useEffect(() => {
     if (!permission?.granted) return;
     let cancelled = false;
+    let failures = 0;
 
     const loop = async () => {
+      await sleep(400);
       while (!cancelled) {
         if (!readyRef.current || capturingRef.current || !camera.current) {
           await sleep(120);
@@ -154,27 +191,35 @@ export function CameraScreen({
         analyzingRef.current = true;
         let previewUri: string | undefined;
         try {
-          const shot = await camera.current.takePictureAsync({
-            quality: 0.35,
+          const shot = await takePicture({
+            quality: 0.2,
             shutterSound: false,
+            timeoutMs: 1800,
           });
           previewUri = shot?.uri;
           if (previewUri && !cancelled && !capturingRef.current) {
             const result = await detectLiveFromUri(previewUri);
+            failures = 0;
             if (!cancelled && !capturingRef.current) {
+              setStatus(null);
               setImageSize({ width: result.width, height: result.height });
               trackerRef.current?.updateFromFrame(result.quad, result.confidence);
             }
           }
         } catch {
-          // Frame dropped; keep the last overlay.
+          failures += 1;
+          trackerRef.current?.updateFromFrame(null, 0);
+          if (failures >= 3 && !capturingRef.current) {
+            setStatus('Hold a page in view');
+          }
+          await sleep(700);
         } finally {
           analyzingRef.current = false;
           await deleteQuietly(previewUri);
         }
         const locked =
           scanRef.current.hasDocument && scanRef.current.confidence >= 0.7;
-        await sleep(locked ? 360 : 200);
+        await sleep(locked ? 320 : 240);
       }
     };
 
@@ -182,7 +227,7 @@ export function CameraScreen({
     return () => {
       cancelled = true;
     };
-  }, [permission?.granted]);
+  }, [permission?.granted, takePicture]);
 
   if (!permission?.granted) {
     return (
@@ -206,7 +251,7 @@ export function CameraScreen({
         style={StyleSheet.absoluteFill}
         facing="back"
         mode="picture"
-        pictureSize="Photo"
+        pictureSize="High"
         autofocus="off"
         animateShutter={false}
         onCameraReady={() => {

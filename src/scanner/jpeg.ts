@@ -13,12 +13,6 @@ function cacheDir() {
   return dir;
 }
 
-export async function readFileBase64(uri: string): Promise<string> {
-  return FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-}
-
 export async function writeJpegFile(bytes: Uint8Array, name?: string): Promise<string> {
   const file = new File(cacheDir(), name ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
   const b64 = Buffer.from(bytes).toString('base64');
@@ -26,13 +20,6 @@ export async function writeJpegFile(bytes: Uint8Array, name?: string): Promise<s
     encoding: FileSystem.EncodingType.Base64,
   });
   return file.uri;
-}
-
-export async function writeJpegToUri(uri: string, bytes: Uint8Array): Promise<void> {
-  const b64 = Buffer.from(bytes).toString('base64');
-  await FileSystem.writeAsStringAsync(uri, b64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
 }
 
 export async function deleteQuietly(uri: string | undefined) {
@@ -73,64 +60,38 @@ function resizeAction(
   return { resize: { width: maxEdge } };
 }
 
+/**
+ * Always convert through the manipulator (HEIC → JPEG + optional resize) and
+ * decode the base64 it returns. Reading the camera's temp file directly fails
+ * on iOS Photo/HEIC captures, which made live detection look "stuck".
+ */
 export async function decodeJpegUri(
   uri: string,
   options?: { maxWidth?: number; maxEdge?: number; sourceWidth?: number; sourceHeight?: number },
 ): Promise<{ raster: Raster; width: number; height: number; uri: string }> {
-  let source = uri;
-  if (options?.maxWidth) {
-    const resized = await manipulateAsync(uri, [{ resize: { width: options.maxWidth } }], {
-      compress: 0.8,
-      format: SaveFormat.JPEG,
-    });
-    source = resized.uri;
-  } else if (options?.maxEdge) {
-    const resized = await manipulateAsync(
-      uri,
-      [resizeAction(options.maxEdge, options.sourceWidth, options.sourceHeight)],
-      {
-        compress: 1,
-        format: SaveFormat.JPEG,
-      },
-    );
-    source = resized.uri;
-  }
+  const actions = options?.maxWidth
+    ? [{ resize: { width: options.maxWidth } }]
+    : options?.maxEdge
+      ? [resizeAction(options.maxEdge, options.sourceWidth, options.sourceHeight)]
+      : [];
 
-  const b64 = await readFileBase64(source);
-  const bytes = Buffer.from(b64, 'base64');
-  const raw = decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true });
-  const raster = rasterFromRgba(raw.width, raw.height, raw.data as Uint8Array);
-  return { raster, width: raw.width, height: raw.height, uri: source };
-}
-
-/** Longest-edge cap for the *page* after native crop, not the whole camera frame. */
-export const PROCESS_MAX_EDGE = 2560;
-
-export async function bakeJpeg(uri: string): Promise<{ uri: string; width: number; height: number }> {
-  const result = await manipulateAsync(uri, [], { compress: 1, format: SaveFormat.JPEG });
-  return { uri: result.uri, width: result.width, height: result.height };
-}
-
-export async function cropJpeg(
-  uri: string,
-  crop: { originX: number; originY: number; width: number; height: number },
-): Promise<{ uri: string; width: number; height: number }> {
-  const result = await manipulateAsync(uri, [{ crop }], { compress: 1, format: SaveFormat.JPEG });
-  return { uri: result.uri, width: result.width, height: result.height };
-}
-
-export async function resizeJpeg(
-  uri: string,
-  maxEdge: number,
-  sourceWidth: number,
-  sourceHeight: number,
-): Promise<{ uri: string; width: number; height: number }> {
-  if (Math.max(sourceWidth, sourceHeight) <= maxEdge) {
-    return { uri, width: sourceWidth, height: sourceHeight };
-  }
-  const result = await manipulateAsync(uri, [resizeAction(maxEdge, sourceWidth, sourceHeight)], {
-    compress: 1,
+  const result = await manipulateAsync(uri, actions, {
+    compress: options?.maxWidth ? 0.7 : 0.92,
     format: SaveFormat.JPEG,
+    base64: true,
   });
-  return { uri: result.uri, width: result.width, height: result.height };
+
+  if (!result.base64) {
+    throw new Error('Could not read camera image');
+  }
+
+  const raw = decodeJpeg(Buffer.from(result.base64, 'base64'), {
+    useTArray: true,
+    formatAsRGBA: true,
+  });
+  const raster = rasterFromRgba(raw.width, raw.height, raw.data as Uint8Array);
+  return { raster, width: raw.width, height: raw.height, uri: result.uri };
 }
+
+/** Longest-edge cap before JS warp/filter. High enough to stay sharp, small enough to finish. */
+export const PROCESS_MAX_EDGE = 1600;

@@ -5,16 +5,16 @@ import 'package:scan2/core/theme/brand.dart';
 /// The visual system for the whole app.
 ///
 /// There used to be two of these. The welcome, onboarding and account screens
-/// were built from the Scanella design pack — its blue, its ink navy, its
+/// were built from the Scanella design pack — its green, its ink navy, its
 /// wordmark — and then the app the customer actually lives in fell back to a
-/// separately seeded Material palette in a different blue, with the platform's
+/// separately seeded Material palette in a different hue, with the platform's
 /// default type face. Crossing from the intro into the library changed the
 /// product's identity, which is exactly the seam that makes an app read as
 /// assembled rather than designed.
 ///
 /// So the tokens in [Brand] are now the single source, and this file turns
 /// them into a [ThemeData] for both brightnesses. Three things carry the
-/// weight: one bundled type face at every size, one blue, and paper — white
+/// weight: one bundled type face at every size, one green, and paper — white
 /// surfaces on a tinted canvas with hairline borders instead of Material's
 /// drop shadows.
 class AppTheme {
@@ -66,9 +66,9 @@ class AppTheme {
   static const _dark = ColorScheme(
     brightness: Brightness.dark,
     primary: Brand.accentLight,
-    onPrimary: Color(0xFF1A0838),
-    primaryContainer: Color(0xFF3A1A6B),
-    onPrimaryContainer: Color(0xFFE4D8FA),
+    onPrimary: Color(0xFF042315),
+    primaryContainer: Color(0xFF11482D),
+    onPrimaryContainer: Color(0xFFD6F2E4),
     secondary: Brand.paperOnDark,
     onSecondary: Brand.inkCanvas,
     secondaryContainer: Color(0xFF23324E),
@@ -302,7 +302,7 @@ class AppTheme {
               : (isLight ? Colors.white : scheme.onSurfaceVariant);
         }),
         // A disabled switch that is on still has to look off-limits. Painting
-        // it in full brand blue next to a greyed-out label says the row is
+        // it in full brand green next to a greyed-out label says the row is
         // both active and unavailable at once.
         trackColor: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);

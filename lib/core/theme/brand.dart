@@ -15,20 +15,21 @@ class Brand {
   /// platform face automatically, so a Japanese or Hindi locale still renders.
   static const font = 'PlusJakartaSans';
 
-  /// The violet used for primary buttons, links, the scan target and the
+  /// The green used for primary buttons, links, the scan target and the
   /// accent half of the wordmark.
   ///
   /// Deep rather than bright on purpose, for three reasons. White 15.5px bold
   /// sits on this in every filled button, and it clears 9:1. The product is
   /// white paper, so an accent that recedes lets the scan stay the brightest
   /// thing on screen — the customer opened the app to look at their page, not
-  /// at a button. And a saturated violet is the house colour of every AI app
-  /// shipped this year, which is a thing a design dates itself by.
-  static const accent = Color(0xFF5B2E9E);
-  static const accentDark = Color(0xFF46237B);
+  /// at a button. And a neon green is the worst version of this hue on the one
+  /// screen that matters: against the dark camera view it blooms, thickening
+  /// the very edge the overlay is drawing to show you where the page is.
+  static const accent = Color(0xFF0E5433);
+  static const accentDark = Color(0xFF0A4127);
 
   /// A lift of the accent, for the top stop of the app-mark gradient.
-  static const accentBright = Color(0xFF7B47C4);
+  static const accentBright = Color(0xFF1B7249);
 
   /// Near-black navy used for headings and the first half of the wordmark.
   static const ink = Color(0xFF0B1B3F);
@@ -47,8 +48,8 @@ class Brand {
   static const outlineStrong = Color(0xFFC9D2E0);
 
   /// Tints of the accent, for containers and selected states.
-  static const accentWash = Color(0xFFF1ECF9);
-  static const accentTint = Color(0xFFDED0F2);
+  static const accentWash = Color(0xFFECF9F3);
+  static const accentTint = Color(0xFFD0F2E2);
 
   /// Dark-mode counterparts. The app is used at night, on a sofa, scanning a
   /// receipt — a white flash there is the least premium thing a phone can do.
@@ -56,7 +57,7 @@ class Brand {
   static const inkSurface = Color(0xFF131D30);
   static const inkSurfaceHigh = Color(0xFF1B263C);
   static const inkOutline = Color(0xFF27334A);
-  static const accentLight = Color(0xFFB79CFF);
+  static const accentLight = Color(0xFF81CFAB);
   static const greyOnDark = Color(0xFF9AA5BD);
   static const paperOnDark = Color(0xFFE8ECF6);
 
@@ -66,8 +67,8 @@ class Brand {
   static const imageGreen = Color(0xFF16A75C);
   static const cloudBlue = Color(0xFF3A8DFF);
 
-  /// "Nearly there" in the camera overlay. Material's stock amber is a shade
-  /// too green next to the brand blue.
+  /// "Nearly there" in the camera overlay. Material's stock amber sits too
+  /// close to the brand green to read as a separate state.
   static const amber = Color(0xFFF5A524);
 
   static const radiusField = 16.0;
@@ -78,7 +79,7 @@ class Brand {
   static const buttonHeight = 58.0;
 }
 
-/// The "Scanella" wordmark: navy "Scan", blue "ella".
+/// The "Scanella" wordmark: navy "Scan", green "ella".
 class ScanellaWordmark extends StatelessWidget {
   const ScanellaWordmark({super.key, this.fontSize = 44});
 
@@ -97,7 +98,7 @@ class ScanellaWordmark extends StatelessWidget {
       height: 1.05,
     );
     // Taken from the scheme rather than pinned to the tokens: in light these
-    // resolve to exactly the mockup's navy and blue, and in dark the mark
+    // resolve to exactly the mockup's navy and green, and in dark the mark
     // stays readable instead of printing navy onto navy.
     final scheme = Theme.of(context).colorScheme;
     return Text.rich(
@@ -116,7 +117,7 @@ class ScanellaWordmark extends StatelessWidget {
   }
 }
 
-/// The rounded app mark: a blue tile holding a flatbed scanner.
+/// The rounded app mark: a green tile holding a flatbed scanner.
 class ScanellaAppMark extends StatelessWidget {
   const ScanellaAppMark({super.key, this.size = 116});
 
@@ -220,7 +221,7 @@ class _ScannerMarkPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Primary full-width action button from the mockups: solid blue, bold label,
+/// Primary full-width action button from the mockups: solid green, bold label,
 /// optional trailing arrow.
 class BrandButton extends StatelessWidget {
   const BrandButton({

@@ -11,6 +11,7 @@ import { PressableScale } from '../components/PressableScale';
 import { Fonts, Lime, LimeDeep } from '../theme/colors';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAppStore } from '../store/useAppStore';
+import { isExpoGo } from '../services/scanner';
 import { HomeTabParamList, RootStackParamList } from './types';
 
 const Tab = createBottomTabNavigator<HomeTabParamList>();
@@ -50,7 +51,9 @@ function ScanTabBar({ state, navigation }: BottomTabBarProps) {
         onPress={() => navigation.navigate('Documents')}
       />
       <PressableScale
-        onPress={() => root.navigate(useInApp ? 'Camera' : 'NativeScan')}
+        onPress={() =>
+          root.navigate(useInApp || isExpoGo() ? 'Camera' : 'NativeScan')
+        }
         haptic="medium"
         scaleTo={0.94}
       >

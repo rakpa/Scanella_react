@@ -19,6 +19,7 @@ import { Fonts, Lime, Radius } from '../theme/colors';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAppStore } from '../store/useAppStore';
 import { saveToPhotos, shareImages, sharePdf } from '../services/export';
+import { isExpoGo } from '../services/scanner';
 import { RootStackParamList } from '../navigation/types';
 
 export function DocumentDetailScreen({
@@ -120,7 +121,9 @@ export function DocumentDetailScreen({
         <BrandButton
           label="Add page"
           variant="ghost"
-          onPress={() => navigation.navigate(useInApp ? 'Camera' : 'NativeScan')}
+          onPress={() =>
+            navigation.navigate(useInApp || isExpoGo() ? 'Camera' : 'NativeScan')
+          }
         />
         <View style={{ height: 10 }} />
         <BrandButton label="Export" onPress={() => setExportOpen(true)} />

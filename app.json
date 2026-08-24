@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Scanella",
+    "slug": "scanella",
+    "scheme": "scanella",
+    "version": "1.5.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F9FC"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.scanella.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scanella uses the camera to scan documents. Pages stay on this iPhone.",
+        "NSPhotoLibraryUsageDescription": "Scanella imports photos so you can turn them into scans.",
+        "NSPhotoLibraryAddUsageDescription": "Scanella saves finished pages to Photos when you ask it to.",
+        "NSMicrophoneUsageDescription": "Microphone access is unused; iOS may request it with the camera."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#BEF264",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.scanella.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "plugins": [
+      "expo-font",
+      "expo-image-picker",
+      "expo-document-picker",
+      "expo-media-library",
+      "expo-camera",
+      "expo-asset",
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Scanella uses the camera to scan documents. Pages stay on this iPhone."
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

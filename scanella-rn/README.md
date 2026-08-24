@@ -41,6 +41,12 @@ capture falls back to a plain camera (`expo-image-picker`) and the library
 shows a banner saying so. Use this to check the UI, the library, the theme
 and PDF export.
 
+`--tunnel` is bundled as a dev dependency (`@expo/ngrok`), so it works out of
+the box. Use it whenever the machine running Metro is a container, VM, WSL or
+cloud workspace: the LAN QR advertises an address like `172.30.0.2` that a
+phone cannot route to, and Expo's own offer to install ngrok *globally* fails
+with a permissions error in most of those environments.
+
 ### Development build — the real scanner
 
 ```bash

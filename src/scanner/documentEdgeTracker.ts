@@ -42,6 +42,7 @@ export class DocumentEdgeTracker {
   static readonly duplicateThreshold = 0.03;
 
   private readonly holdDurationMs: number;
+  private readonly motionThreshold: number;
   private readonly onAutoCapture: () => void;
   private readonly onState: (state: ScanState) => void;
 
@@ -61,10 +62,12 @@ export class DocumentEdgeTracker {
     onAutoCapture: () => void;
     onState: (state: ScanState) => void;
     holdDurationMs?: number;
+    motionThreshold?: number;
   }) {
     this.onAutoCapture = options.onAutoCapture;
     this.onState = options.onState;
     this.holdDurationMs = options.holdDurationMs ?? 900;
+    this.motionThreshold = options.motionThreshold ?? DocumentEdgeTracker.steadyMotionThreshold;
   }
 
   start() {
@@ -96,7 +99,7 @@ export class DocumentEdgeTracker {
       const blend = Math.min(0.85, Math.max(0.3, motion * 12));
       this.quad = this.quad.lerp(detected, blend);
       this.confidence = this.confidence * 0.35 + confidence * 0.65;
-      if (motion > DocumentEdgeTracker.steadyMotionThreshold) {
+      if (motion > this.motionThreshold) {
         this.steadyForMs = 0;
       }
     } else {

@@ -131,6 +131,45 @@ export function isFullFrame(quad: Quad, eps = 0.02): boolean {
   );
 }
 
+export type PixelCrop = {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+};
+
+/** Pixel bounding box of a normalized quad, padded so warp has a little margin. */
+export function quadBoundingBox(
+  quad: Quad,
+  imageWidth: number,
+  imageHeight: number,
+  pad = 0.02,
+): PixelCrop {
+  const xs = quad.corners.map((c) => c.x * imageWidth);
+  const ys = quad.corners.map((c) => c.y * imageHeight);
+  const padX = imageWidth * pad;
+  const padY = imageHeight * pad;
+  const originX = Math.max(0, Math.floor(Math.min(...xs) - padX));
+  const originY = Math.max(0, Math.floor(Math.min(...ys) - padY));
+  const x2 = Math.min(imageWidth, Math.ceil(Math.max(...xs) + padX));
+  const y2 = Math.min(imageHeight, Math.ceil(Math.max(...ys) + padY));
+  return {
+    originX,
+    originY,
+    width: Math.max(8, x2 - originX),
+    height: Math.max(8, y2 - originY),
+  };
+}
+
+/** Rewrites a full-image quad into the coordinate space of a cropped region. */
+export function remapQuadToCrop(quad: Quad, crop: PixelCrop, imageWidth: number, imageHeight: number): Quad {
+  const map = (p: Point): Point => ({
+    x: (p.x * imageWidth - crop.originX) / crop.width,
+    y: (p.y * imageHeight - crop.originY) / crop.height,
+  });
+  return new Quad(map(quad.topLeft), map(quad.topRight), map(quad.bottomRight), map(quad.bottomLeft));
+}
+
 /** Map normalized image coords onto a cover-fitted camera preview. */
 export function mapCover(
   nx: number,

@@ -33,6 +33,7 @@ export function CameraScreen({
   const analyzingRef = useRef(false);
   const readyRef = useRef(false);
   const captureFn = useRef<() => void>(() => undefined);
+  const scanRef = useRef<ScanState>(idleScanState());
   const [scan, setScan] = useState<ScanState>(idleScanState);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export function CameraScreen({
   const filter = useAppStore((s) => s.settings.defaultFilter);
   const autoCapture = useAppStore((s) => s.settings.autoCapture);
   const shutterSound = useAppStore((s) => s.settings.shutterSound);
+  scanRef.current = scan;
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -53,8 +55,6 @@ export function CameraScreen({
     if (!camera.current || capturingRef.current) return;
     capturingRef.current = true;
     setBusy(true);
-    setFlash(1);
-    setTimeout(() => setFlash(0), 120);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
@@ -62,6 +62,17 @@ export function CameraScreen({
       while (analyzingRef.current && Date.now() - waitStart < 2000) {
         await sleep(40);
       }
+      // Let autofocus recover after live analysis stills, matching scan2
+      // taking one full-res photo from a live preview rather than a 15% JPEG.
+      await sleep(280);
+      try {
+        await camera.current.resumePreview();
+      } catch {
+        // Preview already running.
+      }
+
+      setFlash(1);
+      setTimeout(() => setFlash(0), 90);
 
       const photo = await camera.current.takePictureAsync({
         quality: 1,
@@ -73,7 +84,8 @@ export function CameraScreen({
       }
 
       setStatus('Finding edges…');
-      const fallback = scan.hasDocument ? scan.quad : null;
+      const live = scanRef.current;
+      const fallback = live.hasDocument ? live.quad : null;
       const processed = await processCapture({
         uri: photo.uri,
         fallbackQuad: fallback,
@@ -106,7 +118,7 @@ export function CameraScreen({
       capturingRef.current = false;
       setBusy(false);
     }
-  }, [addDocument, filter, navigation, scan.hasDocument, scan.quad, shutterSound]);
+  }, [addDocument, filter, navigation, shutterSound]);
 
   captureFn.current = () => {
     void capture();
@@ -116,7 +128,8 @@ export function CameraScreen({
     const tracker = new DocumentEdgeTracker({
       onAutoCapture: () => captureFn.current(),
       onState: setScan,
-      holdDurationMs: 900,
+      holdDurationMs: 650,
+      motionThreshold: 0.024,
     });
     tracker.setAutoCapture(autoCapture);
     tracker.start();
@@ -142,7 +155,7 @@ export function CameraScreen({
         let previewUri: string | undefined;
         try {
           const shot = await camera.current.takePictureAsync({
-            quality: 0.15,
+            quality: 0.35,
             shutterSound: false,
           });
           previewUri = shot?.uri;
@@ -159,7 +172,9 @@ export function CameraScreen({
           analyzingRef.current = false;
           await deleteQuietly(previewUri);
         }
-        await sleep(80);
+        const locked =
+          scanRef.current.hasDocument && scanRef.current.confidence >= 0.7;
+        await sleep(locked ? 360 : 200);
       }
     };
 
@@ -190,6 +205,9 @@ export function CameraScreen({
         ref={camera}
         style={StyleSheet.absoluteFill}
         facing="back"
+        mode="picture"
+        pictureSize="Photo"
+        autofocus="off"
         animateShutter={false}
         onCameraReady={() => {
           readyRef.current = true;

@@ -80,7 +80,7 @@ export async function decodeJpegUri(
   let source = uri;
   if (options?.maxWidth) {
     const resized = await manipulateAsync(uri, [{ resize: { width: options.maxWidth } }], {
-      compress: 0.72,
+      compress: 0.8,
       format: SaveFormat.JPEG,
     });
     source = resized.uri;
@@ -89,7 +89,7 @@ export async function decodeJpegUri(
       uri,
       [resizeAction(options.maxEdge, options.sourceWidth, options.sourceHeight)],
       {
-        compress: 0.85,
+        compress: 1,
         format: SaveFormat.JPEG,
       },
     );
@@ -103,5 +103,34 @@ export async function decodeJpegUri(
   return { raster, width: raw.width, height: raw.height, uri: source };
 }
 
-/** Longest-edge cap used before JS warp/filter so Expo Go stays responsive. */
-export const PROCESS_MAX_EDGE = 1600;
+/** Longest-edge cap for the *page* after native crop, not the whole camera frame. */
+export const PROCESS_MAX_EDGE = 2560;
+
+export async function bakeJpeg(uri: string): Promise<{ uri: string; width: number; height: number }> {
+  const result = await manipulateAsync(uri, [], { compress: 1, format: SaveFormat.JPEG });
+  return { uri: result.uri, width: result.width, height: result.height };
+}
+
+export async function cropJpeg(
+  uri: string,
+  crop: { originX: number; originY: number; width: number; height: number },
+): Promise<{ uri: string; width: number; height: number }> {
+  const result = await manipulateAsync(uri, [{ crop }], { compress: 1, format: SaveFormat.JPEG });
+  return { uri: result.uri, width: result.width, height: result.height };
+}
+
+export async function resizeJpeg(
+  uri: string,
+  maxEdge: number,
+  sourceWidth: number,
+  sourceHeight: number,
+): Promise<{ uri: string; width: number; height: number }> {
+  if (Math.max(sourceWidth, sourceHeight) <= maxEdge) {
+    return { uri, width: sourceWidth, height: sourceHeight };
+  }
+  const result = await manipulateAsync(uri, [resizeAction(maxEdge, sourceWidth, sourceHeight)], {
+    compress: 1,
+    format: SaveFormat.JPEG,
+  });
+  return { uri: result.uri, width: result.width, height: result.height };
+}

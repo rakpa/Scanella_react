@@ -10,7 +10,7 @@ async function copyInto(dir: Directory, uri: string, name: string) {
   const dest = new File(dir, name);
   try {
     const source = new File(uri);
-    await source.copy(dest, { overwrite: true });
+    source.copy(dest);
     return dest.uri;
   } catch {
     return uri;

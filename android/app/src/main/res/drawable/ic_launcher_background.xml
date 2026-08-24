@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brand gradient, matching ScanellaAppMark: bright violet at the top
+     left falling to the deep accent at the bottom right. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="#7B47C4"
+        android:endColor="#5B2E9E"
+        android:angle="315"
+        android:type="linear" />
+</shape>

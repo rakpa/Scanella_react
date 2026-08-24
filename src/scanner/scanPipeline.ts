@@ -1,9 +1,9 @@
 /**
  * Capture pipeline matching scan2 PageProcessor:
- * detect on a downscaled luma grid, perspective-correct, enhance.
+ * detect on a 320px luma copy, perspective-correct the full page, enhance.
  */
 import { ScanFilter } from '../types';
-import { Quad } from './geometry';
+import { Quad, quadBoundingBox, remapQuadToCrop } from './geometry';
 import {
   ANALYSIS_WIDTH,
   STILL_ANALYSIS_EDGE,
@@ -11,7 +11,16 @@ import {
   detectionToQuad,
 } from './documentQuadDetector';
 import { applyAdjustments, isNoOp, ScanAdjustments } from './imageProcessor';
-import { decodeJpegUri, encodeRasterJpeg, PROCESS_MAX_EDGE, writeJpegFile } from './jpeg';
+import {
+  cropJpeg,
+  decodeBase64Jpeg,
+  decodeJpegUri,
+  encodeRasterJpeg,
+  PROCESS_MAX_EDGE,
+  resizeJpeg,
+  toFullJpeg,
+  writeJpegFile,
+} from './jpeg';
 import { warpRaster } from './perspective';
 import { Raster } from './raster';
 
@@ -60,22 +69,42 @@ export async function processCapture(options: {
   sourceWidth?: number;
   sourceHeight?: number;
 }): Promise<ProcessedPage> {
-  const decoded = await decodeJpegUri(options.uri, {
-    maxEdge: PROCESS_MAX_EDGE,
-    sourceWidth: options.sourceWidth,
-    sourceHeight: options.sourceHeight,
-  });
-  let source = decoded.raster;
-  if (Math.max(source.width, source.height) > PROCESS_MAX_EDGE) {
-    source = source.downscaledTo(PROCESS_MAX_EDGE);
-  }
+  // Full-quality JPEG, same as scan2 decoding the still at native resolution.
+  const full = await toFullJpeg(options.uri);
 
   let quad: Quad | null = null;
   if (options.detectEdges !== false) {
-    quad = detectQuadInRaster(source) ?? options.fallbackQuad ?? null;
+    const analysis = await decodeJpegUri(full.uri, {
+      maxEdge: STILL_ANALYSIS_EDGE,
+      sourceWidth: full.width,
+      sourceHeight: full.height,
+    });
+    const detection = detectFromLuminance(analysis.raster.toLuma(), analysis.width, analysis.height);
+    quad = detection ? detectionToQuad(detection, 0.006) : options.fallbackQuad ?? null;
   }
 
-  const warped = quad ? (warpRaster(source, quad) ?? source) : source;
+  let page = full;
+  let localQuad = quad;
+  if (quad) {
+    try {
+      const box = quadBoundingBox(quad, full.width, full.height);
+      page = await cropJpeg(full.uri, box);
+      localQuad = remapQuadToCrop(quad, box, full.width, full.height);
+    } catch {
+      localQuad = quad;
+    }
+  }
+
+  page = await resizeJpeg(page, PROCESS_MAX_EDGE);
+  const decoded = page.base64
+    ? decodeBase64Jpeg(page.base64)
+    : await decodeJpegUri(page.uri, {
+        maxEdge: PROCESS_MAX_EDGE,
+        sourceWidth: page.width,
+        sourceHeight: page.height,
+      });
+
+  const warped = localQuad ? (warpRaster(decoded.raster, localQuad) ?? decoded.raster) : decoded.raster;
 
   const originalBytes = encodeRasterJpeg(warped, 92);
   const originalUri = await writeJpegFile(originalBytes, `orig-${Date.now()}.jpg`);

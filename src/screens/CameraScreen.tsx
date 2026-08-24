@@ -20,6 +20,9 @@ import { QuadOverlay } from '../scanner/QuadOverlay';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const LIVE_SIZE = '640x480';
+const SHOT_SIZE = 'Photo';
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(label)), ms);
@@ -49,6 +52,8 @@ export function CameraScreen({
   const analyzingRef = useRef(false);
   const readyRef = useRef(false);
   const pictureLock = useRef(Promise.resolve());
+  const readyGate = useRef<(() => void) | null>(null);
+  const pictureSizeRef = useRef(LIVE_SIZE);
   const captureFn = useRef<() => void>(() => undefined);
   const scanRef = useRef<ScanState>(idleScanState());
   const [scan, setScan] = useState<ScanState>(idleScanState);
@@ -57,11 +62,35 @@ export function CameraScreen({
   const [flash, setFlash] = useState(0);
   const [viewSize, setViewSize] = useState({ width: 0, height: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [pictureSize, setPictureSize] = useState(LIVE_SIZE);
   const addDocument = useAppStore((s) => s.addDocument);
   const filter = useAppStore((s) => s.settings.defaultFilter);
   const autoCapture = useAppStore((s) => s.settings.autoCapture);
   const shutterSound = useAppStore((s) => s.settings.shutterSound);
   scanRef.current = scan;
+  pictureSizeRef.current = pictureSize;
+
+  const waitForCameraReady = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 2200);
+        readyGate.current = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      }),
+    [],
+  );
+
+  const switchPictureSize = useCallback(
+    async (size: string) => {
+      if (pictureSizeRef.current === size && readyRef.current) return;
+      readyRef.current = false;
+      setPictureSize(size);
+      await waitForCameraReady();
+    },
+    [waitForCameraReady],
+  );
 
   const takePicture = useCallback(
     (options: { quality: number; shutterSound: boolean; timeoutMs: number }) => {
@@ -102,13 +131,17 @@ export function CameraScreen({
         await sleep(40);
       }
 
+      setStatus('Capturing…');
+      await switchPictureSize(SHOT_SIZE);
+      await sleep(350);
+
       setFlash(1);
       setTimeout(() => setFlash(0), 90);
 
       const photo = await takePicture({
-        quality: 0.92,
+        quality: 1,
         shutterSound,
-        timeoutMs: 8000,
+        timeoutMs: 12000,
       });
       if (!photo?.uri) {
         trackerRef.current?.releaseCaptureLock();
@@ -147,11 +180,12 @@ export function CameraScreen({
     } catch {
       trackerRef.current?.releaseCaptureLock();
       setStatus('Could not capture — try the shutter');
+      void switchPictureSize(LIVE_SIZE);
     } finally {
       capturingRef.current = false;
       setBusy(false);
     }
-  }, [addDocument, filter, navigation, shutterSound, takePicture]);
+  }, [addDocument, filter, navigation, shutterSound, takePicture, switchPictureSize]);
 
   captureFn.current = () => {
     void capture();
@@ -161,7 +195,7 @@ export function CameraScreen({
     const tracker = new DocumentEdgeTracker({
       onAutoCapture: () => captureFn.current(),
       onState: setScan,
-      holdDurationMs: 650,
+      holdDurationMs: 900,
       motionThreshold: 0.024,
     });
     tracker.setAutoCapture(autoCapture);
@@ -182,7 +216,12 @@ export function CameraScreen({
     const loop = async () => {
       await sleep(400);
       while (!cancelled) {
-        if (!readyRef.current || capturingRef.current || !camera.current) {
+        if (
+          !readyRef.current ||
+          capturingRef.current ||
+          !camera.current ||
+          pictureSizeRef.current !== LIVE_SIZE
+        ) {
           await sleep(120);
           continue;
         }
@@ -249,11 +288,13 @@ export function CameraScreen({
         style={StyleSheet.absoluteFill}
         facing="back"
         mode="picture"
-        pictureSize="High"
+        pictureSize={pictureSize}
         autofocus="off"
         animateShutter={false}
         onCameraReady={() => {
           readyRef.current = true;
+          readyGate.current?.();
+          readyGate.current = null;
         }}
       />
       <View style={StyleSheet.absoluteFill} pointerEvents="none">

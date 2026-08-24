@@ -2,7 +2,7 @@ import { Buffer } from 'buffer';
 import { decode as decodeJpeg, encode as encodeJpeg } from 'jpeg-js';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Directory, File, Paths } from 'expo-file-system';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { ActionCrop, manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Raster, rasterFromRgba } from './raster';
 
 function cacheDir() {
@@ -60,10 +60,60 @@ function resizeAction(
   return { resize: { width: maxEdge } };
 }
 
+function rasterFromBase64(b64: string): { raster: Raster; width: number; height: number } {
+  const raw = decodeJpeg(Buffer.from(b64, 'base64'), { useTArray: true, formatAsRGBA: true });
+  return {
+    raster: rasterFromRgba(raw.width, raw.height, raw.data as Uint8Array),
+    width: raw.width,
+    height: raw.height,
+  };
+}
+
+export type JpegImage = {
+  uri: string;
+  width: number;
+  height: number;
+  base64?: string;
+};
+
+/** Convert HEIC/camera output to a full-quality JPEG without shrinking it. */
+export async function toFullJpeg(uri: string): Promise<JpegImage> {
+  const result = await manipulateAsync(uri, [], { compress: 1, format: SaveFormat.JPEG });
+  return { uri: result.uri, width: result.width, height: result.height };
+}
+
+export async function cropJpeg(uri: string, crop: ActionCrop['crop']): Promise<JpegImage> {
+  const result = await manipulateAsync(uri, [{ crop }], {
+    compress: 1,
+    format: SaveFormat.JPEG,
+    base64: true,
+  });
+  if (!result.base64) throw new Error('Could not crop page');
+  return { uri: result.uri, width: result.width, height: result.height, base64: result.base64 };
+}
+
+export async function resizeJpeg(image: JpegImage, maxEdge: number): Promise<JpegImage> {
+  if (Math.max(image.width, image.height) <= maxEdge) return image;
+  const result = await manipulateAsync(
+    image.uri,
+    [resizeAction(maxEdge, image.width, image.height)],
+    {
+      compress: 1,
+      format: SaveFormat.JPEG,
+      base64: true,
+    },
+  );
+  if (!result.base64) throw new Error('Could not resize page');
+  return { uri: result.uri, width: result.width, height: result.height, base64: result.base64 };
+}
+
+export function decodeBase64Jpeg(b64: string): { raster: Raster; width: number; height: number } {
+  return rasterFromBase64(b64);
+}
+
 /**
- * Always convert through the manipulator (HEIC → JPEG + optional resize) and
- * decode the base64 it returns. Reading the camera's temp file directly fails
- * on iOS Photo/HEIC captures, which made live detection look "stuck".
+ * Always convert through the manipulator (HEIC → JPEG + optional resize).
+ * Live analysis uses maxWidth 240; capture uses a high maxEdge and compress 1.
  */
 export async function decodeJpegUri(
   uri: string,
@@ -76,7 +126,7 @@ export async function decodeJpegUri(
       : [];
 
   const result = await manipulateAsync(uri, actions, {
-    compress: options?.maxWidth ? 0.7 : 0.92,
+    compress: options?.maxWidth ? 0.7 : 1,
     format: SaveFormat.JPEG,
     base64: true,
   });
@@ -85,13 +135,9 @@ export async function decodeJpegUri(
     throw new Error('Could not read camera image');
   }
 
-  const raw = decodeJpeg(Buffer.from(result.base64, 'base64'), {
-    useTArray: true,
-    formatAsRGBA: true,
-  });
-  const raster = rasterFromRgba(raw.width, raw.height, raw.data as Uint8Array);
-  return { raster, width: raw.width, height: raw.height, uri: result.uri };
+  const decoded = rasterFromBase64(result.base64);
+  return { ...decoded, uri: result.uri };
 }
 
-/** Longest-edge cap before JS warp/filter. High enough to stay sharp, small enough to finish. */
-export const PROCESS_MAX_EDGE = 1600;
+/** Longest-edge cap after native page crop — scan2 warps up to 12MP; 2400 keeps text sharp in Expo Go. */
+export const PROCESS_MAX_EDGE = 2400;

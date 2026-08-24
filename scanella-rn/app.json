@@ -34,6 +34,13 @@
         {
           "cameraPermission": "Scanella uses the camera to scan your documents. Nothing leaves your device."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Scanella can import an existing photo of a document.",
+          "cameraPermission": "Scanella uses the camera to scan your documents. Nothing leaves your device."
+        }
       ]
     ],
     "experiments": {

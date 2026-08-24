@@ -24,16 +24,32 @@ port buys is UI freedom, not better detection.
 
 ## Running it
 
-The scanner is a native module, so **this will not run in Expo Go** — it needs
-a development build.
+There are two ways, and they differ in one thing only: whether you get real
+edge detection.
+
+### Expo Go — the quick look
 
 ```bash
 cd scanella-rn
 npm install
+npx expo start
+```
 
-# Generate the native projects and run
+Scan the QR code with Expo Go. Everything works except the scanner itself:
+Expo Go ships a fixed set of native modules and cannot load this one, so
+capture falls back to a plain camera (`expo-image-picker`) and the library
+shows a banner saying so. Use this to check the UI, the library, the theme
+and PDF export.
+
+### Development build — the real scanner
+
+```bash
 npx expo run:android      # or: npx expo run:ios  (macOS only)
 ```
+
+This compiles the native scanner in, so capture gets VisionKit / ML Kit edge
+detection, auto-capture and perspective correction. `src/lib/scanner.ts`
+picks the backend at runtime; nothing needs changing between the two.
 
 `npx expo prebuild` regenerates `android/` and `ios/`; both are gitignored, so
 the config in `app.json` is the source of truth. The camera permission string

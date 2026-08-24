@@ -16,7 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { BrandButton, Card, Wordmark } from '../src/components/Brand';
 import { useScheme } from '../src/components/theme';
 import { radius } from '../src/theme/brand';
-import { scanDocument } from '../src/lib/scanner';
+import { activeBackend, scanDocument } from '../src/lib/scanner';
 import { createDocument, listDocuments, type Doc } from '../src/lib/store';
 
 export default function Library() {
@@ -26,6 +26,9 @@ export default function Library() {
 
   const [docs, setDocs] = useState<Doc[] | null>(null);
   const [scanning, setScanning] = useState(false);
+
+  // Resolved once: whether this build has the real edge detector behind it.
+  const [backend] = useState(activeBackend);
 
   const refresh = useCallback(() => {
     listDocuments()
@@ -96,6 +99,19 @@ export default function Library() {
       )}
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        {backend === 'camera' ? (
+          <View
+            style={[
+              styles.notice,
+              { backgroundColor: scheme.accentContainer },
+            ]}
+          >
+            <Text style={[styles.noticeText, { color: scheme.onAccentContainer }]}>
+              Expo Go: plain camera, no edge detection. Run a development build
+              for the real scanner.
+            </Text>
+          </View>
+        ) : null}
         <BrandButton
           label={scanning ? 'Scanning…' : 'Scan a document'}
           busy={scanning}
@@ -158,5 +174,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, paddingRight: 8 },
   rowTitle: { fontSize: 16, fontWeight: '700' },
   rowMeta: { fontSize: 13, marginTop: 3, fontWeight: '500' },
-  footer: { paddingHorizontal: 20, paddingTop: 8 },
+  footer: { paddingHorizontal: 20, paddingTop: 8, gap: 10 },
+  notice: { borderRadius: radius.field, paddingHorizontal: 14, paddingVertical: 10 },
+  noticeText: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
 });

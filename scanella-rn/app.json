@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Scanella",
+    "slug": "scanella-rn",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "scanella",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#0E5433"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.scanella.rn"
+    },
+    "android": {
+      "package": "com.scanella.rn",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#0E5433",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Scanella uses the camera to scan your documents. Nothing leaves your device."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

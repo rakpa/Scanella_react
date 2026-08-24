@@ -144,11 +144,9 @@ export function CameraScreen({
         pageId: doc.pages[0]?.id,
         filter,
       });
-    } catch (e) {
+    } catch {
       trackerRef.current?.releaseCaptureLock();
       setStatus('Could not capture — try the shutter');
-      await sleep(1600);
-      if (!capturingRef.current) setStatus(null);
     } finally {
       capturingRef.current = false;
       setBusy(false);
@@ -194,7 +192,7 @@ export function CameraScreen({
           const shot = await takePicture({
             quality: 0.2,
             shutterSound: false,
-            timeoutMs: 1800,
+            timeoutMs: 3000,
           });
           previewUri = shot?.uri;
           if (previewUri && !cancelled && !capturingRef.current) {

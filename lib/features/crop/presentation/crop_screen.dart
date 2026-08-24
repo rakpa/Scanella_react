@@ -113,7 +113,9 @@ class _CropScreenState extends ConsumerState<CropScreen> {
         quad = detectQuadInRaster(source.raster) ?? const Quad.centered();
       }
 
-      final preview = await rasterToImage(source.raster);
+      // The crop stage gets the sharper copy: corners are placed against it
+      // by eye, and it is rasterised once rather than per adjustment.
+      final preview = await rasterToImage(source.cropRaster);
       if (!mounted) {
         preview.dispose();
         return;
